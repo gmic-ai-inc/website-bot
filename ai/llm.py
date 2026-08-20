@@ -98,14 +98,16 @@ def _client_lazy():
     return _client
 
 
-def _system(session, faq, product_ref=""):
+def _system(session, faq, product_ref, moq):
     """
-    拼这一轮的"系统提示"。顺序:人设 → 入口意图 → FAQ 口径 → 已知线索 → 输出契约。
+    拼这一轮的"系统提示"。顺序:人设 → 入口意图 → 问卷 → 产品知识 → FAQ 口径 → MOQ 口径 → 已知线索 → 输出契约。
     这几块合起来,就是"只带精华、不带全部历史"里的"精华"。
 
     参数:
       session: 会话快照,这里取 entry_intents(走过哪些入口)+ answers/recommendations(问卷)+ lead(已知/还缺什么)。
       faq:     widget.json 里的 FAQ 问答列表(见 prompts.faq_reference),用来统一 bot 自由回答的口径。
+      moq:     {"note":起订量口径, "below":访客量级是否低于起订量} —— 由调用方(routes)算好传进来,
+               见 prompts.moq_line。⚠️ 必传:这块以前是死配置从没注入,导致 bot 对小批量说"完美契合"。
 
     例:session={entry_intents:["odm"], lead:{email:"a@x.com", missing:["need"]}}、faq=[已填好1条] →
         拼出的 system 文本大致是:
@@ -138,12 +140,17 @@ def _system(session, faq, product_ref=""):
     fr = prompts.faq_reference(faq)
     if fr:                                     # 一条 FAQ 都没填好 → fr 为空 → 这块不放
         blocks.append(fr)
+    # MOQ(起订量)口径块:放在 FAQ 之后——FAQ 里那条 MOQ 答案是"泛泛提一句",这块是"硬门槛 + 低于门槛
+    # 怎么说"的强化,放后面压得住。没配 moq_note → ml 为空 → 不放。
+    ml = prompts.moq_line(moq)
+    if ml:
+        blocks.append(ml)
     blocks.append(prompts.lead_line(session.get("lead")))
     blocks.append(_JSON_CONTRACT)
     return "\n\n".join(blocks)                 # 各块之间空一行,读起来清楚
 
 
-async def respond(session, faq, window, product_ref=""):
+async def respond(session, faq, window, product_ref, moq):
     """
     跑一轮对话(异步):把上下文喂给模型,一次拿回【回复文本】+【抽取到的线索】。
 
@@ -152,6 +159,7 @@ async def respond(session, faq, window, product_ref=""):
       faq:     widget.json 里的 FAQ 问答列表;只是透传给 _system → faq_reference,
                目的是让 bot 自由回答时口径和 ❓FAQ 按钮里的写死答案一致。
       window:  最近 N 轮对话(滑动窗口),形如 [{role:"user"/"assistant", text:"..."}, ...]。
+      product_ref / moq: 同样只是透传给 _system(产品知识目录 / 起订量口径),见各自的 prompts 函数。
     返回:一个三元组 (回复文本 reply, 线索更新字典 lead, 想问的渠道 wants_channel) ——
           lead 已滤掉空字段;wants_channel 是"用户在问我们哪个渠道"(小写,没问就是空串 "")。
 
@@ -177,7 +185,7 @@ async def respond(session, faq, window, product_ref=""):
       (之后调用方把 lead 交给 sessions.update_lead 回填,并重算 missing。)
     """
     # 步骤1:system 放最前,再按顺序接上最近 N 轮对话
-    messages = [{"role": "system", "content": _system(session, faq, product_ref)}]
+    messages = [{"role": "system", "content": _system(session, faq, product_ref, moq)}]
     for t in window:
         role = "assistant" if t["role"] == "assistant" else "user"   # 只认这两种角色,其余一律当 user
         messages.append({"role": role, "content": t["text"]})

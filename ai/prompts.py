@@ -208,6 +208,47 @@ def product_reference(text):
     return ("Product knowledge — ground ALL product answers in these real facts:\n" + text) if text else ""
 
 
+def moq_line(moq):
+    """
+    把起订量(MOQ)口径注入系统提示,并在访客量级【低于】起订量时给出硬约束。
+
+    ── 为什么必须有这一块(踩过的坑)──
+      widget.json 里一直写着 moq_note("典型起订量约 2,000 台"),但【从来没有任何代码注入它】,
+      等于死配置:MOQ 这个数字唯一进到系统提示的路径,是藏在 FAQ 第 2 条答案的句子中间。
+      模型只"瞄到过一次数字",没人告诉它这是硬门槛 → 2026-08-19 一条真实询盘里,访客选了
+      "Under 1,000",bot 回了 "perfect for smaller quantities under 1,000 units, a great fit"。
+      客户拿到一个我们兑现不了的预期,真人跟进时要往回改口。这块就是修这个。
+
+    ── 输入 ──
+      moq: {"note": 起订量口径原文(来自 widget.json 的 moq_note), "below": 访客量级是否低于起订量(bool)}。
+           note 为空 → 返回 ""(这块不放,行为退回改动前)。below 由 widget_config.below_moq() 确定性判定,
+           【不让模型自己比大小】——它既不可靠、也不知道 2000 是门槛。
+    ── 输出 ──
+      一段英文提示;note 为空时返回 ""。
+
+    例:{"note":"Custom / private-label projects typically start around 2,000 units...", "below":True}
+        → 除了口径本身,还追加"绝不能说 great/perfect fit,要说清典型起订量 + 给出样机/打样这条路 +
+           让真人给准数"这条硬约束。
+        {"note":"...","below":False} → 只给口径,不追加约束(别对本来量级够的人主动提门槛,扫兴)。
+    """
+    note = ((moq or {}).get("note") or "").strip()
+    if not note:
+        return ""      # 没配 MOQ 口径 → 这块不放
+    lines = [f"Minimum order quantity (MOQ) — this is a commercial commitment, treat it as fact: {note}"]
+    if (moq or {}).get("below"):
+        # ⚠️ 这几句是防"说漏"的关键,改文案时别把"禁止说 great fit"这层意思弄丢。
+        lines.append(
+            "IMPORTANT: the visitor's stated quantity is BELOW that typical minimum. Do NOT tell them it "
+            "is a 'great fit' or 'perfect' for their quantity, and do NOT imply we can produce a custom or "
+            "private-label run at that volume. Instead: acknowledge their volume, state plainly that custom "
+            "and private-label runs typically start around the minimum above, and offer the realistic path "
+            "forward, a working sample or paid prototype first, or an off-the-shelf unit they can brand later, "
+            "with our team confirming the exact figure for their specific build. Stay warm and encouraging, "
+            "never dismissive, and never quote a lower minimum than the one above."
+        )
+    return "\n".join(lines)
+
+
 def lead_line(lead):
     """
     把"目前已知访客哪些信息、还缺什么"用英文告诉模型,方便它决定要不要追问 need/联系方式。

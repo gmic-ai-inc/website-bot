@@ -31,9 +31,30 @@ Widget 本地地址:`http://127.0.0.1:8090/widget/` ｜ 线上:`https://web-bot.
 ./venv/Scripts/python.exe tests/test_memory.py
 ```
 
-验:轮数上限、滑动窗口、`missing=need+contact` 口径、entry_intent 首次锁定、
-messengers 并集/同平台留最新、`match_our_channels`/`contact_for_channel`、LRU、TTL 清理。
-**期望:`ALL PASS`(13 项)。**
+验:轮数上限、滑动窗口、`missing=need+contact` 口径、entry_intents 累积去重、
+messengers 并集/同平台留最新、`match_our_channels`/`contact_for_channel`、
+`recommend_for` 多选参与选型、**推荐 links 多链接**、**行业页映射**、**MOQ 低量判定 + `moq_line` 文案**、
+**归因题 `source_value` 校验/截断 + `source` 不进 lead/missing**、LRU、TTL 清理。
+**期望:`ALL PASS`(43 项)。**
+
+---
+
+## 1b. 层一半 — 端到端流程测试(离线,不花钱不联网)
+
+```bash
+./venv/Scripts/python.exe tests/test_flow.py
+```
+
+TestClient 打真实路由,但把 `llm.respond` 和 `slack.*` 换成假的(所以**不消耗 OpenAI 额度、
+不往 `#web-bot` 刷垃圾卡**),可以随便跑。假 LLM 会把它收到的**系统提示存下来**,于是能直接断言
+"某个上下文块到底有没有被拼进提示词"——这正是 8-19 那个 MOQ bug 的根因(`moq_note` 写在配置里却
+从没被注入)。
+
+验:`/config` 暴露新配置 · 问卷推荐给出**多个型号页 + 行业落地页** · 答案 sanitize 挡注入串 ·
+**MOQ 口径真的进了系统提示**(低于起订量时含"不许说 great fit"的硬约束,量级够时不含) ·
+归因题**两个触发入口**(问卷答完 / 拿到联系方式 / 聊够 3 轮)+ **一个会话只问一次** ·
+`POST /source` 正常与错误分支 · Slack 卡出现「获知渠道」行且与「来源」分开 · 老路径没被碰坏。
+**期望:`35 项 —— ALL PASS`。**
 
 ---
 

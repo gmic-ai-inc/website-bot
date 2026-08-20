@@ -130,6 +130,13 @@ class SessionStore:
                                              #   目前只有 help-me-choose(Tab3)按 recommend_rules 算推荐,故通常只有它一个键;
                                              #   其它 Tab 不产生推荐(不写入)。供 LLM 出方案 + 前端取链接。
                     "lead": {},              # 线索:边聊边回填的"一条"记录(不是每轮一条)
+                    "source": None,          # 获知渠道(访客【自述】"你从哪知道我们的"):LinkedIn / Google search / 自由文本。
+                                             #   ⚠️ 和 meta.page_url 不是一回事:page_url 是机器能看到的落地页(渠道的一半线索,
+                                             #   GA4 那边也有),source 补的是机器【看不到】的那半——展会、口碑、朋友推荐、线下。
+                                             #   刻意【不放进 lead】:lead 里的字段都是 LLM 每轮重抽的,放进去会被模型瞎猜覆盖;
+                                             #   这个值只由用户点选/打字产生(见 set_source),是确定性数据。也【不进 missing】(非必填)。
+                    "source_asked": False,   # 归因题问过没有(问一次就不再问,别烦人)。见 routes._should_ask_source。
+                                             #   语义是"已经把题发出去了",不代表用户答了——答了才写 source。
                     "turns": [],             # 逐句对话:每说一句 append 一条,有上限
                     "slack_thread_ts": None, # 这通对话在 Slack 那条 thread 的根消息 ID(不是时间!)
                     "meta": meta or {},      # 附加信息:来源页面、语言等
@@ -280,6 +287,39 @@ class SessionStore:
             if not has_contact:
                 missing.append("contact")
             s["lead"]["missing"] = missing
+
+    def mark_source_asked(self, sid):
+        """
+        标记"归因题已经发给这个访客了"(问一次就够,别每轮都弹)。
+
+        为什么"发出去"就算问过、而不是"答了"才算:归因是 nice-to-have,发出去用户没理
+        (Luna 的原话是"他不回答就不回咯")那就算了,不该下一轮又弹一次。用户刷新页面时
+        session_id 从 localStorage 复用 → 这个标记在服务端,所以刷新也不会重复问。
+        """
+        with self._lock:
+            s = self._data.get(sid)
+            if s:
+                s["source_asked"] = True
+
+    def set_source(self, sid, value):
+        """
+        写入访客自述的"获知渠道"(点了 LinkedIn / Google search / Other 后填的自由文本)。
+
+        规则:【非空才覆盖】(同 update_lead 的口径,支持改口:先点 Other 又点 LinkedIn → 留后者);
+              写入同时把 source_asked 置 True(答了当然算问过)。
+        输入:value = 已经在路由层校验/截断过的字符串(选项 label 或自由文本)。
+        例:set_source("sess_x", "LinkedIn") → session["source"]="LinkedIn"、source_asked=True。
+        """
+        with self._lock:
+            s = self._data.get(sid)
+            if not s:
+                return
+            value = (value or "").strip()
+            if value:
+                s["source"] = value
+            s["source_asked"] = True          # 答了/点了 → 一定算问过
+            s["last_seen"] = _now()
+            self._data.move_to_end(sid)       # 算一次活动(LRU + 防 TTL 清掉)
 
     def set_slack_ts(self, sid, ts):
         """记住这通对话在 Slack 的 thread 根消息 ID(之后 chat.update 靠它精准改那张卡)。"""

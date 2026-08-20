@@ -2,11 +2,14 @@
 HTTP 路由 —— 用 FastAPI 的 APIRouter 组织(异步),方便以后加更多端点/版本。
 
 端点一览:
-  GET  /health   存活检查
-  GET  /config   前端拉配置(问候语、4 个按钮、FAQ)
-  POST /event    快捷按钮点击(topic 话题 / faq 常见问题 / link 跳转)
-  POST /chat     一条打字消息          -> AI 回复
-  POST /voice    一段录音(multipart)  -> 转写 -> AI 回复
+  GET  /health            存活检查
+  GET  /config            前端拉配置(问候语、4 个 Tab、问卷、FAQ、归因题…)
+  POST /event             快捷按钮点击(topic 话题 / faq 常见问题 / link 跳转)
+  POST /chat              一条打字消息 -> AI 回复
+  POST /questionnaire     某个 Tab 的问卷答完一次性提交 -> 方案 + 链接
+  POST /source            归因题("你从哪知道我们的")-> 记录客源渠道,不调 LLM
+  POST /voice/transcribe  一段录音 -> 只转写(浮窗预览用)
+  POST /voice/message     发一条语音留言(联系方式必填)-> Slack,不调 LLM
 
 【FastAPI 白拿的好处】用 Pydantic 模型声明请求体,字段缺失/类型不对 FastAPI 会自动返回 422,
   不用再手写 `if not sid` 这种校验(回应你 review 里关心的参数校验)。
@@ -18,8 +21,9 @@ from fastapi import APIRouter, UploadFile, File, Form, HTTPException
 from pydantic import BaseModel
 
 from core import sessions
-from core.widget_config import (CONFIG, ACTIONS, QUESTIONNAIRES, recommend_for,
-                                match_our_channels, contact_for_channel)
+from core.widget_config import (CONFIG, ACTIONS, QUESTIONNAIRES, SOURCE_QUESTION, MOQ_NOTE,
+                                recommend_for, match_our_channels, contact_for_channel,
+                                industry_links_for, below_moq, source_value)
 from ai import stt, llm
 from integrations import slack
 
@@ -74,9 +78,12 @@ async def _run_llm(sid):
     """
     snap = STORE.snapshot(sid)
     window = STORE.window(sid)
+    # MOQ(起订量)口径:note = 官方原话;below = 访客选过的数量是否低于起订量(确定性判定,不让模型比大小)。
+    # 以前 moq_note 是死配置从没注入 → bot 对 "Under 1,000" 说过"完美契合",见 prompts.moq_line 的注释。
+    moq = {"note": MOQ_NOTE, "below": below_moq(snap.get("answers") if snap else None)}
     try:
         reply, lead, wants_channel = await llm.respond(snap, CONFIG.get("faq", []), window,
-                                                       CONFIG.get("product_reference", ""))
+                                                       CONFIG.get("product_reference", ""), moq)
     except Exception:
         log.exception("llm.respond failed for session %s — using fallback reply", sid)
         reply, lead, wants_channel = LLM_FALLBACK_REPLY, {}, ""
@@ -155,6 +162,59 @@ async def _reply_and_archive(sid):
     await slack.update_card(STORE, sid)                                         # 步4
     throwbacks = _throwbacks(sid, before_msgr, wants)
     return reply, throwbacks
+
+
+def _should_ask_source(sid, force=False):
+    """
+    该不该在这一轮把归因题("你从哪知道我们的")发给访客?——【确定性判断,不靠 LLM】。
+
+    ── 产品口径(Luna 2026-08-19 拍板)──
+      ① 【不设成必填】:这题对访客零价值(不像问卷答完能换来一个推荐),必填只会让人随手蒙一个
+         或者直接关窗;逼来的数据比没数据更危险(会拿它做决策)。所以它是"发出去,不答就算了"。
+      ② 【两个触发点】,不只问卷那一处:
+         - 问卷方案给完之后(force=True 由 /questionnaire 传);
+         - 普通聊天里也要问 —— 没进问卷的访客也逃不掉。聊天里的触发条件二者取一先到:
+             · 已经拿到联系方式(这是最自然的收尾时刻,他已经答应被跟进了);
+             · 或者用户已经说了 N 轮(说明是认真在聊,不是路过点一下)。
+      ③ 【一个会话只问一次】:发出去就标记 source_asked(见 sessions.mark_source_asked),
+         用户不理也不再弹。标记在服务端,所以刷新页面(session_id 从 localStorage 复用)也不会重复问。
+
+    ── 输入 ──
+      sid:   会话 id。
+      force: True = 跳过"聊够几轮/有没有联系方式"这些条件,只要没问过就问(给 /questionnaire 用)。
+    ── 输出 ──
+      True = 这一轮把题发出去(调用方需自行调 mark_source_asked);False = 不发。
+
+    例:刚聊第 1 句、没留联系方式 → False(太早,别打断)。
+        刚留下邮箱 → True(自然收尾时刻)。
+        已经问过一次 → False(不管答没答)。
+        答完问卷 → True(force)。
+    """
+    if not SOURCE_QUESTION.get("options"):
+        return False                                  # 没配这道题 → 永不问(删配置即整个功能下线)
+    snap = STORE.snapshot(sid)
+    if not snap:
+        return False
+    if snap.get("source") or snap.get("source_asked"):
+        return False                                  # 答过 / 问过 → 不再问
+    if force:
+        return True                                   # 问卷答完:直接问
+    lead = snap.get("lead") or {}
+    has_contact = bool(lead.get("email") or lead.get("phone") or lead.get("messengers"))
+    user_turns = sum(1 for t in snap.get("turns", []) if t.get("role") == "user")
+    threshold = int(SOURCE_QUESTION.get("ask_after_user_turns", 3))
+    return has_contact or user_turns >= threshold
+
+
+def _ask_source_flag(sid, force=False):
+    """
+    算出这一轮要不要问归因题,并【顺手把"已问"标记打上】,返回给前端的布尔值。
+    合成一个函数是为了不让调用方忘记打标记(忘了就会每轮都弹,那才叫烦人)。
+    """
+    ask = _should_ask_source(sid, force=force)
+    if ask:
+        STORE.mark_source_asked(sid)   # "发出去"就算问过:不答也不再弹(见 sessions.mark_source_asked)
+    return ask
 
 
 # 语音留言的联系方式:平台 key → Slack/messengers 里显示的规范标签。
@@ -277,8 +337,11 @@ async def chat(req: ChatReq):
 
     # 5) 跑大模型出回复 + 归档 + 算甩链(打字是即时的,一步返回即可,不像语音要拆两步)。
     reply, throwbacks = await _reply_and_archive(req.session_id)
-    # 产出:{reply: AI 回复, contacts: 要甩回的直连渠道(可能为空)} → 前端显示 bot 气泡 + 直连按钮
-    return {"reply": reply, "contacts": throwbacks}
+    # 6) 该不该问归因题("你从哪知道我们的")。聊天这条路按"拿到联系方式 或 聊够 N 轮"触发,
+    #    一个会话只问一次(见 _should_ask_source);前端收到 true 才渲染那排选项。
+    ask_source = _ask_source_flag(req.session_id)
+    # 产出:{reply: AI 回复, contacts: 要甩回的直连渠道(可能为空), ask_source: 是否附上归因题}
+    return {"reply": reply, "contacts": throwbacks, "ask_source": ask_source}
 
 
 # 注:原 POST /lead 端点已删除。它只服务于 widget 的"邮箱框 Save"按钮,那个框已连同一起去掉
@@ -359,35 +422,43 @@ def _summarize_answers(q, answers):
     return " · ".join(parts) if parts else "(completed the questionnaire)"
 
 
-def _questionnaire_links(tab, q, recommendation):
+def _questionnaire_links(tab, q, recommendation, answers):
     """
     算出这个 Tab 答完后要给用户展示的链接列表(前端渲染成按钮)。
-    分三种:
-      - book-demo        → 日历预约链接(questionnaire 定义里的 result_link);
-      - help-me-choose   → Tab3 推荐产品的详情/总览链接(recommend_for 的产出);
-      - odm / add-branding → 该 Tab 配好的相关服务页链接(questionnaire.links)。
-    产出:[{"label":..,"url":..}, ...],没有就 []。
+
+    ── 四个来源,按"最贴他这次选择"的顺序拼 ──
+      ① 推荐型号的详情页(仅 help-me-choose,来自 recommend_rules 命中那条的 links);
+      ② 【行业落地页】——按他在"在哪用 / 什么行业"那题选的,给一条"你这行我们专门做"的页面
+         (见 widget_config.industry_links_for)。为什么加:官网 8 月上线了一批行业页,只给一个通用
+         产品页说服力差很多;客户看到"他们专门做医疗场景的"信任度完全不同。odm / add-branding /
+         help-me-choose 三个 Tab 都吃这条(它们的行业题选项都在 industry_links 表里)。
+      ③ book-demo 的日历预约链接(result_link);
+      ④ 该 Tab 配好的固定链接(questionnaire.links)。
+
+    ── links 是【列表】不是单值 ──
+      一条推荐可能对应【多个】型号详情页:比如"穿戴 + 诊疗"推 MIC06A 和 MIC05,官网两款各有自己的页
+      (MIC06 系列页 + MIC05 页),必要时两个链接都给。改动前 recommend_rules 只有一个 `link` 字段,
+      推荐里第一款写着 MIC06A、链接却指向 MIC05 页 —— 客户点进去得自己找。
+
+    输入:tab / q(该 Tab 的问卷定义)/ recommendation(仅 Tab3 有)/ answers(【清洗后的】本次答案,用来查行业页)。
+    产出:[{"label":..,"url":..}, ...],按 URL 去重保序;没有就 []。
     """
-    extra = q.get("links", [])   # Tab 级补充链接(知识库/佐证页,widget.json 里配)
+    extra = q.get("links", [])          # Tab 级固定链接(知识库/佐证页,widget.json 里配)
+    industry = industry_links_for(answers)   # 行业落地页(按"在哪用/什么行业"那题的选项映射;没对应页就是 [])
     out = []
     if tab == "book-demo":
         rl = q.get("result_link")
         if rl:
             out.append(rl)
-        out += extra
+        out += industry + extra
     elif tab == "help-me-choose":
-        # 用推荐的型号名当链接标签(比泛泛的 "View details" 明确得多):
-        #   有型号 → "See HA-SPK01"(前端会自动补 " →");没型号(兜底)→ "Browse our products"。
-        rec = recommendation or {}
-        link = rec.get("link")
-        if link:
-            prods = rec.get("products") or []
-            label = "See " + ", ".join(prods) if prods else "Browse our products"
-            out.append({"label": label, "url": link})
-        out += extra
+        # 推荐型号的详情页:标签写死在 widget.json 的 links 里(如 "See MIC06"),不再按 products 拼——
+        # 写死才不会出现"标签列了两个型号、链接只有一个"的错配。
+        out += (recommendation or {}).get("links") or []
+        out += industry + extra
     else:
-        out = extra   # odm / add-branding:直接用问卷里配好的链接(标签本就有描述性)
-    # 按 URL 去重(推荐链接可能与某条 Tab 链接指向同一页),保序。
+        out = industry + extra   # odm / add-branding:行业页 + 问卷里配好的链接(标签本就有描述性)
+    # 按 URL 去重(推荐链接/行业页可能与某条 Tab 链接指向同一页),保序。
     seen, deduped = set(), []
     for l in out:
         u = (l or {}).get("url")
@@ -452,11 +523,103 @@ async def questionnaire(req: QuestionnaireReq):
     if followup:
         reply = (reply + "\n\n" + followup) if reply else followup
 
-    # 9) 算出这个 Tab 要展示给用户的链接(方案链接 / Tab3 推荐链接 / Book-a-demo 日历)。
-    links = _questionnaire_links(req.tab, q, recommendation)
+    # 9) 算出这个 Tab 要展示给用户的链接(推荐型号页 / 行业落地页 / Book-a-demo 日历 / Tab 固定链接)。
+    links = _questionnaire_links(req.tab, q, recommendation, answers)
 
-    # 产出:{reply: 方案, contacts: 甩链, links: 展示链接} → 前端显示 bot 方案气泡 + 链接按钮。
-    return {"reply": reply, "contacts": throwbacks, "links": links}
+    # 10) 归因题:问卷方案给完就问(force=True,不看聊了几轮)。一个会话只问一次。
+    ask_source = _ask_source_flag(req.session_id, force=True)
+
+    # 产出:{reply: 方案, contacts: 甩链, links: 展示链接, ask_source: 是否附上归因题}
+    return {"reply": reply, "contacts": throwbacks, "links": links, "ask_source": ask_source}
+
+
+# ============================================================================
+# 归因("你从哪知道我们的")—— 客源渠道指标
+#   为什么要:Slack 卡上的"来源"是访客的落地页 URL(机器能看到的那半,GA4 也有),而展会、口碑、
+#   朋友推荐、线下这些【机器看不到】的渠道只能问。这题补的正是那半盲区。
+#   为什么不必填:见 _should_ask_source 的口径说明(必填 = 随手蒙 = 噪音数据)。
+#   前端:收到 ask_source=true 才渲染那排选项;用户点了才 POST 到这里,不点就什么也不发生。
+# ============================================================================
+class SourceReq(BaseModel):
+    # 例:{"session_id":"sess_ab12","option_id":"linkedin"}
+    #     {"session_id":"sess_ab12","option_id":"other","text":"a colleague recommended you"}
+    session_id: str
+    option_id: str                 # 必须是 widget.json source_question.options 里定义过的 id
+    text: str | None = None        # 只有 free_text 那个选项(Other)才用得上;其余忽略
+
+
+@router.post("/source")
+async def source(req: SourceReq):
+    """
+    记录访客自述的"从哪知道我们的"。不调大模型(纯确定性数据),秒回。
+
+    步骤:
+      1) 校验 + 归一成最终字符串:固定选项取【配置里的 label】(不信前端传的文字),Other 才收自由文本并截断
+         —— 端点是公开的,而这个值会进 Slack 卡片(见 widget_config.source_value)。不认识的 option_id → 400。
+      2) 会话不存在 → 400(归因必须挂在一段真实对话上,不给它建空会话)。
+      3) 写进会话(顺带标记已问)+ 发进 Slack thread 归档 + 刷新线索卡(卡上多一行"获知渠道")。
+    产出:{"ok":true, "value":最终存的字符串, "thanks":致谢话术} → 前端渲染成一句 bot 回应。
+    """
+    # 1) 校验 + 归一(不合法直接 400,别把脏值写进卡片)
+    value = source_value(req.option_id, req.text)
+    if not value:
+        raise HTTPException(status_code=400, detail="unknown source option")
+
+    # 2) 必须已有会话(归因是对话的附属信息,不单独建会话)
+    if not STORE.snapshot(req.session_id):
+        raise HTTPException(status_code=400, detail="unknown session")
+
+    # 3) 落库 + 归档
+    STORE.set_source(req.session_id, value)
+    await slack.post_detail(STORE, req.session_id, f"📣 获知渠道: {value}")
+    await slack.update_card(STORE, req.session_id)
+    return {"ok": True, "value": value, "thanks": SOURCE_QUESTION.get("thanks", "")}
+
+
+# ============================================================================
+# 官网 contact 表单 → Slack
+#   gmic.ai 的 /contact-gmic-ai/ 那张询盘表单(Meng 的静态页,以前只是假装成功、从不发送)
+#   现在由 WordPress 侧的 mu-plugin 先存成一条记录,再【服务器对服务器】转发到这里,
+#   由我们发进 #web-bot —— 于是表单、聊天、语音三个入口的线索都落在同一个频道。
+#   为什么不让浏览器直接打这个端点:那样这个 token 就得写在页面里,等于公开。
+# ============================================================================
+CONTACT_FORM_TOKEN = os.getenv("CONTACT_FORM_TOKEN", "")
+
+
+class ContactFormReq(BaseModel):
+    # 例:{"token":"…","name":"Will de Hoon","contact_type":"WhatsApp","contact_value":"+15550001234",
+    #      "company":"Enzover",
+    #      "industry":"MedTech","volume":"2,000 - 10,000","project":"Need a branded recorder",
+    #      "page_url":"https://gmic.ai/contact-gmic-ai/","referrer":"https://www.google.com/"}
+    token: str
+    name: str
+    contact_type: str              # Email / WhatsApp / WeChat / Telegram / Phone(表单里选的类型)
+    contact_value: str             # 对应的值。WP 侧已按类型校验过一遍,这里只查非空
+    company: str | None = None
+    industry: str | None = None
+    volume: str | None = None
+    project: str | None = None
+    page_url: str | None = None
+    referrer: str | None = None
+    submitted: str | None = None
+
+
+@router.post("/contact-form")
+async def contact_form(req: ContactFormReq):
+    """
+    收 WordPress 转来的表单询盘 → 发一张 Slack 卡。不建会话、不调大模型。
+
+    鉴权 = 一个共享 token(WP 侧存在 .env / WP option 里)。**没配 token 就一律拒绝**(fail closed):
+    这个端点会往团队频道发消息,开着等于给人一个刷 Slack 的口子。
+    """
+    if not CONTACT_FORM_TOKEN or req.token != CONTACT_FORM_TOKEN:
+        raise HTTPException(status_code=403, detail="bad token")
+    if not req.name.strip() or not req.contact_value.strip():
+        raise HTTPException(status_code=400, detail="name and contact_value required")
+
+    await slack.post_form_card(req.model_dump())
+    log.info("contact form forwarded to Slack: %s %s (%s)", req.contact_type, req.contact_value, req.company)
+    return {"ok": True}
 
 
 # ============================================================================

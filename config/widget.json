@@ -30,7 +30,6 @@
       "entry_intent": "book-demo"
     }
   ],
-
   "questionnaires": {
     "odm": {
       "intro": "Full custom builds: your own device from the ground up, covering industrial design, PCB, acoustics, firmware and mass production. We've built voice hardware for healthcare, field service and consumer brands.",
@@ -65,20 +64,29 @@
           "label": "Quantity",
           "q": "First-run quantity?",
           "options": [
-            "Under 1,000",
-            "1,000 – 5,000",
-            "5,000+",
+            "Prototype / under 500",
+            "500 – 2,000",
+            "2,000 – 10,000",
+            "10,000+",
             "Not sure yet"
           ]
         }
       ],
       "links": [
-        { "label": "ODM / OEM services", "url": "https://gmic.ai/ai-hardware-odm-oem/" },
-        { "label": "Custom enclosure design", "url": "https://gmic.ai/custom-hardware-enclosure-design/" },
-        { "label": "See our case studies", "url": "https://gmic.ai/ai-hardware-case-studies/" }
+        {
+          "label": "ODM / OEM services",
+          "url": "https://gmic.ai/ai-hardware-odm-oem/"
+        },
+        {
+          "label": "Custom enclosure design",
+          "url": "https://gmic.ai/custom-hardware-enclosure-design/"
+        },
+        {
+          "label": "See our case studies",
+          "url": "https://gmic.ai/ai-hardware-case-studies/"
+        }
       ]
     },
-
     "add-branding": {
       "intro": "Take one of our proven devices and make it yours: your logo, colors, packaging, even firmware tweaks. Faster and lower cost than a full custom build. (Also known as private label / OEM.)",
       "cta": "Brand my device →",
@@ -111,19 +119,25 @@
           "label": "Quantity",
           "q": "Quantity & market?",
           "options": [
-            "Under 1,000",
-            "1,000 – 5,000",
-            "5,000+",
-            "Not sure"
+            "Prototype / under 500",
+            "500 – 2,000",
+            "2,000 – 10,000",
+            "10,000+",
+            "Not sure yet"
           ]
         }
       ],
       "links": [
-        { "label": "Private-label voice AI hardware", "url": "https://gmic.ai/private-label-voice-ai-hardware/" },
-        { "label": "Browse products to brand", "url": "https://gmic.ai/products/" }
+        {
+          "label": "Private-label voice AI hardware",
+          "url": "https://gmic.ai/private-label-voice-ai-hardware/"
+        },
+        {
+          "label": "Browse products to brand",
+          "url": "https://gmic.ai/products/"
+        }
       ]
     },
-
     "help-me-choose": {
       "intro": "Not sure which device fits? Answer 3 quick questions and we'll point you to the right one, then help you request a sample.",
       "cta": "Find my device →",
@@ -167,10 +181,12 @@
         }
       ],
       "links": [
-        { "label": "Browse all products", "url": "https://gmic.ai/products/" }
+        {
+          "label": "Browse all products",
+          "url": "https://gmic.ai/products/"
+        }
       ]
     },
-
     "book-demo": {
       "intro": "See it live. Tell us what you'd like to see and we'll set it up.",
       "cta": "Set up my demo →",
@@ -208,7 +224,10 @@
         }
       ],
       "links": [
-        { "label": "See our case studies", "url": "https://gmic.ai/ai-hardware-case-studies/" }
+        {
+          "label": "See our case studies",
+          "url": "https://gmic.ai/ai-hardware-case-studies/"
+        }
       ],
       "result_link": {
         "label": "Book your demo",
@@ -216,83 +235,282 @@
       }
     }
   },
-
   "recommend_rules": [
     {
-      "when": { "usage": "To answer phone calls" },
-      "products": ["Telalive", "HA-TEL02"],
-      "link": "https://gmic.ai/telalive/",
+      "when": {
+        "usage": "To answer phone calls"
+      },
+      "products": [
+        "Telalive",
+        "HA-TEL02"
+      ],
+      "links": [
+        {
+          "label": "See Telalive",
+          "url": "https://gmic.ai/telalive/"
+        }
+      ],
       "hint": "call-answering: Telalive integrates with a desk phone as a 24/7 receptionist; HA-TEL02 is a 4G handheld"
     },
     {
-      "when": { "usage": "On a desk / in a room", "musthave": "Rugged / waterproof" },
-      "products": ["HA-SPK01"],
-      "link": "https://gmic.ai/products/",
+      "when": {
+        "usage": "On a desk / in a room",
+        "musthave": "Rugged / waterproof"
+      },
+      "products": [
+        "HA-SPK01"
+      ],
+      "links": [
+        {
+          "label": "Browse our speakers",
+          "url": "https://gmic.ai/products/"
+        }
+      ],
       "hint": "waterproof desk/room speaker — SPK01 is IPX7"
     },
     {
-      "when": { "usage": "On a desk / in a room" },
-      "products": ["HA-SPK01", "HA-SPK03"],
-      "link": "https://gmic.ai/products/",
+      "when": {
+        "usage": "On a desk / in a room"
+      },
+      "products": [
+        "HA-SPK01",
+        "HA-SPK03"
+      ],
+      "links": [
+        {
+          "label": "Browse our speakers",
+          "url": "https://gmic.ai/products/"
+        }
+      ],
       "hint": "desk/room speaker; SPK01 is IPX7"
     },
     {
-      "when": { "usage": "In-ear / headset" },
-      "products": ["HA-BC01"],
-      "link": "https://gmic.ai/products/",
+      "when": {
+        "usage": "In-ear / headset"
+      },
+      "products": [
+        "HA-BC01"
+      ],
+      "links": [
+        {
+          "label": "Browse our headsets",
+          "url": "https://gmic.ai/products/"
+        }
+      ],
       "hint": "bone-conduction headset, IPX6, rugged for outdoor use"
     },
     {
-      "when": { "usage": "Worn hands-free (badge, clip, lanyard)", "where": "Clinic / healthcare" },
-      "products": ["HA-MIC06A", "HA-MIC05"],
-      "link": "https://gmic.ai/mic05-secure-ai-voice-recorder/",
+      "when": {
+        "usage": "Worn hands-free (badge, clip, lanyard)",
+        "where": "Clinic / healthcare"
+      },
+      "products": [
+        "HA-MIC06A",
+        "HA-MIC05"
+      ],
+      "links": [
+        {
+          "label": "See MIC06",
+          "url": "https://gmic.ai/mic06-ai-voice-capture-device/"
+        },
+        {
+          "label": "See MIC05",
+          "url": "https://gmic.ai/mic05-secure-ai-voice-recorder/"
+        }
+      ],
       "hint": "clinical-grade secure wearable recorders; both NFC-encrypted with on-device (1GB) storage, MIC05 adds hardware noise reduction"
     },
     {
-      "when": { "usage": "Worn hands-free (badge, clip, lanyard)", "musthave": "Security / encryption" },
-      "products": ["HA-MIC05"],
-      "link": "https://gmic.ai/mic05-secure-ai-voice-recorder/",
+      "when": {
+        "usage": "Worn hands-free (badge, clip, lanyard)",
+        "musthave": "Security / encryption"
+      },
+      "products": [
+        "HA-MIC05"
+      ],
+      "links": [
+        {
+          "label": "See MIC05",
+          "url": "https://gmic.ai/mic05-secure-ai-voice-recorder/"
+        }
+      ],
       "hint": "secure wearable recorder — MIC05 has hardware NFC security"
     },
     {
-      "when": { "usage": "Worn hands-free (badge, clip, lanyard)" },
-      "products": ["HA-MIC06A", "HA-MIC05"],
-      "link": "https://gmic.ai/mic05-secure-ai-voice-recorder/",
+      "when": {
+        "usage": "Worn hands-free (badge, clip, lanyard)"
+      },
+      "products": [
+        "HA-MIC06A",
+        "HA-MIC05"
+      ],
+      "links": [
+        {
+          "label": "See MIC06",
+          "url": "https://gmic.ai/mic06-ai-voice-capture-device/"
+        },
+        {
+          "label": "See MIC05",
+          "url": "https://gmic.ai/mic05-secure-ai-voice-recorder/"
+        }
+      ],
       "hint": "wearable recorder for hands-free voice capture"
     },
     {
-      "when": { "usage": "Handheld recorder", "where": "Field / outdoors" },
-      "products": ["HA-MIC01", "HA-BC01"],
-      "link": "https://gmic.ai/mic01-push-to-talk-ai-voice-device/",
+      "when": {
+        "usage": "Handheld recorder",
+        "where": "Field / outdoors"
+      },
+      "products": [
+        "HA-MIC01",
+        "HA-BC01"
+      ],
+      "links": [
+        {
+          "label": "See MIC01",
+          "url": "https://gmic.ai/mic01-push-to-talk-ai-voice-device/"
+        }
+      ],
       "hint": "rugged push-to-talk / bone-conduction for field work"
     },
     {
-      "when": { "usage": "Handheld recorder" },
-      "products": ["HA-MIC01"],
-      "link": "https://gmic.ai/mic01-push-to-talk-ai-voice-device/",
+      "when": {
+        "usage": "Handheld recorder"
+      },
+      "products": [
+        "HA-MIC01"
+      ],
+      "links": [
+        {
+          "label": "See MIC01",
+          "url": "https://gmic.ai/mic01-push-to-talk-ai-voice-device/"
+        }
+      ],
       "hint": "handheld push-to-talk recorder"
     }
   ],
   "recommend_default": {
     "products": [],
-    "link": "https://gmic.ai/products/",
+    "links": [
+      {
+        "label": "Browse all products",
+        "url": "https://gmic.ai/products/"
+      }
+    ],
     "hint": "no single obvious fit — point to the full product range and offer to have someone help narrow it down"
   },
-
+  "industry_links": {
+    "Clinic / healthcare": {
+      "label": "Healthcare voice hardware",
+      "url": "https://gmic.ai/healthcare-ai-scribe-hardware/"
+    },
+    "Healthcare": {
+      "label": "Healthcare voice hardware",
+      "url": "https://gmic.ai/healthcare-ai-scribe-hardware/"
+    },
+    "Field / outdoors": {
+      "label": "Field service voice capture",
+      "url": "https://gmic.ai/field-service-voice-capture-hardware/"
+    },
+    "Field service / on-site work": {
+      "label": "Field service voice capture",
+      "url": "https://gmic.ai/field-service-voice-capture-hardware/"
+    },
+    "Office / meetings": {
+      "label": "Enterprise AI hardware",
+      "url": "https://gmic.ai/enterprise-ai-hardware-solutions/"
+    },
+    "Office, sales & meetings": {
+      "label": "Sales conversation recording",
+      "url": "https://gmic.ai/sales-intelligence-recording-hardware/"
+    }
+  },
   "moq_note": "Custom / private-label projects typically start around 2,000 units, though it depends on the build.",
-
-  "questionnaire_followup": "Want to fine-tune this? Tell me any specific requirements. And whenever you're ready, just leave a contact (email, phone, or a messaging app) and a real member of our team will personally follow up with you shortly.",
-
-  "product_reference": "Our real product lines (recommend ONLY from these; never invent model names or specs, never state a spec that isn't listed here). Wearable recorders (HA-MIC06B/06A/05/04): MIC05 and MIC06A are secure clinical-grade recorders with NFC-encrypted access, on-device storage (1GB), and MIC05 adds hardware noise reduction. Call-answering (Phone Entry): Telalive turns a desk phone into a 24/7 AI receptionist; HA-TEL02 is a 4G handheld assistant. Speakers: HA-SPK01 (IPX7 waterproof mini), HA-SPK03 (IPX5). Headsets: HA-BC01 (bone-conduction, IPX6, rugged for outdoor use), plus OWS/TWS earbuds. Field push-to-talk device: HA-MIC01. Smart devices: HA-GLS01 glasses, HA-PEN01 pen, translator and toy devices. Dev & modules: an ESP32 kit for embedding our voice AI into your own product. If nothing clearly fits, point them to gmic.ai/products and offer to connect a specialist; never guess a spec you are unsure of. Official pages you MAY share when relevant (paste the EXACT URL, never invent a link): Products https://gmic.ai/products/ | ODM/OEM custom builds https://gmic.ai/ai-hardware-odm-oem/ | Private-label / branding https://gmic.ai/private-label-voice-ai-hardware/ | Custom enclosure design https://gmic.ai/custom-hardware-enclosure-design/ | Case studies https://gmic.ai/ai-hardware-case-studies/ | Telalive call-answering https://gmic.ai/telalive/ | MIC05 secure recorder https://gmic.ai/mic05-secure-ai-voice-recorder/ | MIC01 push-to-talk https://gmic.ai/mic01-push-to-talk-ai-voice-device/ | About us https://gmic.ai/about-gmic-ai/ | Contact / get a quote https://gmic.ai/contact-gmic-ai/.",
-
-  "contacts": [
-    { "id": "whatsapp", "label": "WhatsApp", "icon": "💬", "url": "https://api.whatsapp.com/send/?phone=16699000008", "value": "+1 (669) 900-0008", "open_label": "Open WhatsApp" },
-    { "id": "wechat",   "label": "WeChat",   "icon": "🟢", "type": "qr", "qr": "https://gmic.ai/wp-content/uploads/gmic-site/main/img/wechat-qr.png", "value": "Scan to add us on WeChat" },
-    { "id": "telegram", "label": "Telegram", "icon": "✈️", "url": "https://t.me/gmicai", "value": "@gmicai", "open_label": "Open Telegram" },
-    { "id": "email",    "label": "Email",    "icon": "✉️", "url": "mailto:trigg@gmic.ai", "value": "trigg@gmic.ai", "open_label": "Compose email" },
-    { "id": "call",     "label": "Call",     "icon": "📞", "url": "tel:+16699000008", "value": "+1 (669) 900-0008", "open_label": "Call now" }
+  "moq_below_options": [
+    "Prototype / under 500",
+    "500 – 2,000"
   ],
-
+  "questionnaire_followup": "Want to fine-tune this? Tell me any specific requirements. And whenever you're ready, just leave a contact (email, phone, or a messaging app) and a real member of our team will personally follow up with you shortly.",
+  "source_question": {
+    "prompt": "One quick thing, and feel free to skip it: how did you hear about GMIC AI?",
+    "options": [
+      {
+        "id": "linkedin",
+        "label": "LinkedIn"
+      },
+      {
+        "id": "google",
+        "label": "Google search"
+      },
+      {
+        "id": "chatgpt",
+        "label": "ChatGPT"
+      },
+      {
+        "id": "gemini",
+        "label": "Gemini"
+      },
+      {
+        "id": "other_ai",
+        "label": "Other AI"
+      },
+      {
+        "id": "our_blog",
+        "label": "Our blog"
+      },
+      {
+        "id": "other",
+        "label": "Other",
+        "free_text": true
+      }
+    ],
+    "other_placeholder": "Where did you hear about us?",
+    "thanks": "Thanks, that really helps us.",
+    "ask_after_user_turns": 3
+  },
+  "product_reference": "Our real product lines (recommend ONLY from these; never invent model names or specs, never state a spec that isn't listed here). Wearable recorders (HA-MIC06B/06A/05/04): MIC05 and MIC06A are secure clinical-grade recorders with NFC-encrypted access, on-device storage (1GB), and MIC05 adds hardware noise reduction. Call-answering (Phone Entry): Telalive turns a desk phone into a 24/7 AI receptionist; HA-TEL02 is a 4G handheld assistant. Speakers: HA-SPK01 (IPX7 waterproof mini), HA-SPK03 (IPX5). Headsets: HA-BC01 (bone-conduction, IPX6, rugged for outdoor use), plus OWS/TWS earbuds. Field push-to-talk device: HA-MIC01. Smart devices: HA-GLS01 glasses, HA-PEN01 pen, translator and toy devices. Dev & modules: an ESP32 kit for embedding our voice AI into your own product. If nothing clearly fits, point them to gmic.ai/products and offer to connect a specialist; never guess a spec you are unsure of. Official pages you MAY share when relevant (paste the EXACT URL, never invent a link; if no page below covers what they asked, share no link rather than guessing one). Products & models: Products https://gmic.ai/products/ | MIC06 secure voice platform https://gmic.ai/mic06-ai-voice-capture-device/ | MIC05 secure recorder https://gmic.ai/mic05-secure-ai-voice-recorder/ | MIC01 push-to-talk https://gmic.ai/mic01-push-to-talk-ai-voice-device/ | Telalive call-answering https://gmic.ai/telalive/ | AI wearable devices https://gmic.ai/ai-wearable-devices/ | Voice agent hardware https://gmic.ai/voice-agent-hardware/ | Edge AI hardware https://gmic.ai/edge-ai-hardware/ | Embedded AI hardware https://gmic.ai/embedded-ai-hardware/ | Fully custom devices https://gmic.ai/custom-devices/. Custom-build & branding: ODM/OEM custom builds https://gmic.ai/ai-hardware-odm-oem/ | Private-label / branding https://gmic.ai/private-label-voice-ai-hardware/ | Custom enclosure design https://gmic.ai/custom-hardware-enclosure-design/ | Implementation services https://gmic.ai/ai-hardware-implementation-services/. By industry: Healthcare / clinical scribe https://gmic.ai/healthcare-ai-scribe-hardware/ and https://gmic.ai/clinical-ai-scribe-hardware/ | Field service https://gmic.ai/field-service-voice-capture-hardware/ | Public safety https://gmic.ai/public-safety-voice-capture-hardware/ | Transportation & logistics https://gmic.ai/logistics-voice-ai-hardware/ | Sales conversation recording https://gmic.ai/sales-intelligence-recording-hardware/ | Veterinary https://gmic.ai/veterinary-ai-documentation-hardware/ | Enterprise https://gmic.ai/enterprise-ai-hardware-solutions/. Process, samples & manufacturing (use these when asked about samples, prototypes, timelines, testing, certification or production): Development process https://gmic.ai/ai-hardware-development-process/ | Rapid prototyping https://gmic.ai/rapid-ai-hardware-prototyping/ | Prototype validation https://gmic.ai/hardware-prototype-validation/ | EVT/DVT/PVT support https://gmic.ai/evt-dvt-pvt-manufacturing-support/ | SMT manufacturing https://gmic.ai/smt-manufacturing-for-ai-hardware/ | Certification support https://gmic.ai/hardware-certification-support/ | Supply chain management https://gmic.ai/hardware-supply-chain-management/. Firmware & audio engineering: Firmware integration https://gmic.ai/firmware-integration-for-ai-devices/ | AI SDK integration https://gmic.ai/ai-sdk-integration-for-voice-devices/ | Audio & DSP tuning https://gmic.ai/audio-dsp-tuning-for-voice-ai/. Company: About us https://gmic.ai/about-gmic-ai/ | Case studies https://gmic.ai/ai-hardware-case-studies/ | FAQ https://gmic.ai/ai-hardware-faq/ | Contact / get a quote https://gmic.ai/contact-gmic-ai/.",
+  "contacts": [
+    {
+      "id": "whatsapp",
+      "label": "WhatsApp",
+      "icon": "💬",
+      "url": "https://api.whatsapp.com/send/?phone=16699000008",
+      "value": "+1 (669) 900-0008",
+      "open_label": "Open WhatsApp"
+    },
+    {
+      "id": "wechat",
+      "label": "WeChat",
+      "icon": "🟢",
+      "type": "qr",
+      "qr": "https://gmic.ai/wp-content/uploads/gmic-site/main/img/wechat-qr.png",
+      "value": "Scan to add us on WeChat"
+    },
+    {
+      "id": "telegram",
+      "label": "Telegram",
+      "icon": "✈️",
+      "url": "https://t.me/gmicai",
+      "value": "@gmicai",
+      "open_label": "Open Telegram"
+    },
+    {
+      "id": "email",
+      "label": "Email",
+      "icon": "✉️",
+      "url": "mailto:trigg@gmic.ai",
+      "value": "trigg@gmic.ai",
+      "open_label": "Compose email"
+    },
+    {
+      "id": "call",
+      "label": "Call",
+      "icon": "📞",
+      "url": "tel:+16699000008",
+      "value": "+1 (669) 900-0008",
+      "open_label": "Call now"
+    }
+  ],
   "faq": [
     {
       "q": "What do you do?",

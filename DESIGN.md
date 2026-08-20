@@ -46,7 +46,15 @@ session[session_id] = {
                                           # voice-message), appended in arrival order, DEDUPED. [0] = primary attribution.
   answers: {tab: {qid: value|[values]}}, # questionnaire answers BUCKETED per Tab (one bucket per Tab done; re-doing a
                                           # Tab overwrites its bucket, a new Tab adds one) — multiple questionnaires coexist.
-  recommendations: {tab: {...}},         # per-Tab recommendation (products/link/hint); only help-me-choose produces one.
+  recommendations: {tab: {...}},         # per-Tab recommendation (products / links:[...] / hint); only help-me-choose
+                                          # produces one. `links` is a LIST: one recommendation can point at several model
+                                          # pages (e.g. MIC06A + MIC05 → the MIC06 page AND the MIC05 page).
+  source: "LinkedIn" | null,             # how they heard about us, SELF-REPORTED (LinkedIn / Google search / Other + free text).
+                                          # NOT in `lead` on purpose: everything in lead is re-extracted by the LLM each turn
+                                          # and would get overwritten by a guess; this value only ever comes from a click.
+                                          # Complements meta.page_url: page_url = the landing page a machine can see (GA4 has it
+                                          # too), `source` = the half a machine CANNOT see (trade show, word of mouth, referral).
+  source_asked: false,                   # has the attribution question been SENT (not necessarily answered)? Ask once only.
   lead: {name, email, phone, messengers:[...], company, need, missing:[...]},  # ONE record, backfilled; `need` = evolving intent
                                           # messengers = LIST (WhatsApp/WeChat/Telegram...), ONE per platform,
                                           # latest wins (different platforms union; same platform overwrites).
@@ -107,10 +115,40 @@ the whole "voice captured the wrong email" problem class.
 ```
 [browser] type → POST /chat {session_id, text}
   → append "user" turn → ensure Slack card + post_detail(👤)
-  → llm.respond(snapshot, faq, last-N turns) [OpenAI, Structured Outputs] → reply + extracted lead
+  → llm.respond(snapshot, faq, last-N turns, product_ref, moq) [OpenAI, Structured Outputs] → reply + extracted lead
   → update_lead + post_detail(🤖) + update_card → throwbacks (direct-contact links)
-  → return {reply, contacts}
+  → _ask_source_flag()  # should we attach the attribution question this turn?
+  → return {reply, contacts, ask_source}
 ```
+
+### MOQ (minimum order quantity) — a commercial commitment, injected deterministically
+`widget.json` has carried `moq_note` ("typically start around 2,000 units") for weeks, but **nothing in the
+code ever injected it** — dead config. MOQ reached the model only incidentally, buried mid-sentence in one
+FAQ answer. On 2026-08-19 a real inbound lead picked "Under 1,000" and the bot answered *"perfect for
+smaller quantities under 1,000 units, a great fit"* — a promise we cannot honour, which the human then has
+to walk back. Fix:
+- `moq_note` is now injected every turn via `prompts.moq_line()`, labelled as a commercial commitment.
+- **Whether the visitor is below the minimum is decided by code, not the model** — `widget_config.below_moq()`
+  matches their answer against `moq_below_options` (a written-down list). Asking an LLM to compare
+  "Under 1,000" with "around 2,000" is unreliable, and it has no way to know 2,000 is a hard floor.
+- When below: an extra hard constraint forbids "great fit" / "perfect", requires stating the typical
+  minimum, and points at the real path (working sample or paid prototype first, exact figure from the team).
+  When at or above: only the plain note, no warning — don't raise a barrier with someone who cleared it.
+
+### Attribution — "how did you hear about us?" (lead-source metric)
+Deterministic, frontend-rendered, **never required**. Config lives in `widget.json.source_question`.
+- **Two trigger points** (`routes._should_ask_source`): after a questionnaire recommendation lands
+  (`force=True`), and in plain chat too — so visitors who never open a questionnaire still get asked. In
+  chat it fires on whichever comes first: a contact has been captured (the natural wrap-up moment), or the
+  visitor has sent `ask_after_user_turns` messages (they're genuinely engaged, not passing through).
+- **Asked at most once per session.** Sending it sets `source_asked`; if they ignore it, it never returns.
+  The flag lives server-side, so a page refresh (same `session_id` from localStorage) won't re-ask.
+- **Not required, by design.** The question has zero value *to the visitor* (unlike the questionnaire, which
+  buys them a recommendation), so gating on it just costs conversions — and forced answers are noise you
+  would then trust. Chips are passive: they don't lock the input, and ignoring them costs nothing.
+- **The stored string never comes from the client.** Fixed options resolve to the label in *our* config;
+  only the `free_text` option accepts typed input, whitespace-collapsed and truncated to `SOURCE_TEXT_MAX`.
+  The endpoint is public and this value lands on a Slack card — same reasoning as `_sanitize_answers`.
 
 ### Voice message (two calls)
 ```

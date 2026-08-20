@@ -220,12 +220,69 @@ def _card_text(session):
         f"• 需求: {lead.get('need') or '—'}",
     ]
     parts += _questionnaire_lines(session)   # 问卷逐题答案(做过才加;每个 Tab 一段)
-    parts.append(f"• 来源: {session.get('meta', {}).get('page_url') or '—'}")
+    parts.append(f"• 所在页面: {session.get('meta', {}).get('page_url') or '—'}")
+    # ⭐ 获知渠道 = 访客【自己说】的从哪知道我们(LinkedIn / Google search / Other+自由文本)。
+    #   刻意和上面那行"所在页面"并排且分开命名:所在页面 = 他落在哪个页面(机器看到的),获知渠道 = 他怎么听说
+    #   我们的(机器看不到的:展会/口碑/朋友推荐)。团队看客源指标时别把两者混为一谈。
+    #   非必填 → 没答就整行不出现(不留一个"—"占位,免得像缺了什么必填项)。
+    if session.get("source"):
+        parts.append(f"• 获知渠道: {session['source']}")
     if lead.get("missing"):
         # missing 是内部键(contact/need)→ 映射成中文展示;未知键原样。
         _MISS_ZH = {"contact": "联系方式", "need": "需求"}
         parts.append(f"• 缺失: {', '.join(_MISS_ZH.get(m, m) for m in lead['missing'])}")
     return "\n".join(parts)
+
+
+def _form_card_text(f):
+    """
+    官网 contact 表单的线索卡。和聊天/语音卡刻意长得像(同样的中文标签口径),但它【不是会话】——
+    表单是一次性提交,没有对话、没有意图分析,所以不走 session,单独一张卡、不开 thread。
+
+    两个"从哪来"故意分成两行,名字也起得直白些(Luna 8-20:来源/来路分不清):
+      • 所在页面 = 他【填表时正在看】的那一页,完整链接原样给(带 ?utm_… 这类广告标记,
+                   所以不再单列一行"链接参数"——那截本来就在这个链接里面)
+      • 上一站   = 他【从哪个网页点过来】的(Google 搜索结果 / 我们某篇博客 / LinkedIn…)。
+                   这行才是判断"哪条渠道、哪篇文章真带来客户"的那一行。
+    举例:有人 Google 搜 wearable recorder → 点进我们博客 → 从博客点进 contact 页 → 填表:
+          所在页面 = contact 页,上一站 = 那篇博客。
+    例:{"name":"Will de Hoon","contact_type":"Email","contact_value":"w@enzover.com","company":"Enzover","industry":"MedTech",
+         "volume":"2,000 - 10,000","project":"Need a branded recorder","page_url":"https://gmic.ai/contact-gmic-ai/?utm_source=linkedin",
+         "referrer":"https://gmic.ai/dji-mic-mini-healthcare/"} → 一张 "*📋 新表单询盘*" 开头的卡
+    """
+    project = (f.get("project") or "").strip()
+    if len(project) > 2500:                      # Slack 单条消息有长度上限,留足余量
+        project = project[:2500] + " …(截断)"
+    lines = [
+        "*📋 新表单询盘*",
+        "• 入口: 官网 contact 表单",
+        f"• 称呼: {f.get('name') or '—'}",
+        f"• 联系方式: {(f.get('contact_type') or '?') + ' | ' + f['contact_value'] if f.get('contact_value') else '—'}",
+        f"• 公司: {f.get('company') or '—'}",
+    ]
+    if f.get("industry"):
+        lines.append(f"• 行业: {f['industry']}")
+    if f.get("volume"):
+        lines.append(f"• 年采购量: {f['volume']}")
+    lines.append(f"• 需求: {project or '—'}")
+    lines.append(f"• 所在页面: {f.get('page_url') or '—'}")
+    lines.append(f"• 上一站: {f.get('referrer') or '—'}")
+    if f.get("submitted"):
+        lines.append(f"• 提交时间: {f['submitted']}")
+    return "\n".join(lines)
+
+
+async def post_form_card(fields):
+    """表单询盘 → 频道里发一张独立卡(入队即返回)。无会话、无 thread、不调大模型。"""
+    if not _client_lazy():                       # 没配 token → 空转(不炸主流程)
+        return
+    text = _form_card_text(fields)
+
+    async def job():
+        c = _client_lazy()
+        await c.chat_postMessage(channel=_channel(), text=text)
+
+    _enqueue(job, "form_card")
 
 
 # ======================== 对外接口(均为"入队即返回",真正发送由 worker 完成)========================

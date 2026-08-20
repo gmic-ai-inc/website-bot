@@ -97,6 +97,67 @@ def main():
     ok &= _check("desk without waterproof → general rule",
                  rec.get("products") == ["HA-SPK01", "HA-SPK03"], rec.get("products"))
 
+    # ---- 推荐链接改成【列表】(一条推荐可能对应多个型号详情页)----
+    # 穿戴 + 诊疗 → 推 MIC06A/MIC05 两款 → 必须两个详情页链接都给(改动前只有一个 link,
+    # 推荐里第一款写 MIC06A、链接却指向 MIC05 页,客户点进去得自己找)。
+    rec = WC.recommend_for({"usage": "Worn hands-free (badge, clip, lanyard)", "where": "Clinic / healthcare"})
+    urls = [l["url"] for l in rec.get("links") or []]
+    ok &= _check("wearable+clinic → MIC06 & MIC05 两个链接",
+                 any("mic06" in u for u in urls) and any("mic05" in u for u in urls), urls)
+    ok &= _check("旧的单值 link 字段已彻底移除", "link" not in rec, sorted(rec.keys()))
+
+    # ---- 行业落地页:按"在哪用/什么行业"那题的选项映射(按值查,不认题 id)----
+    ind = [l["url"] for l in WC.industry_links_for({"where": "Clinic / healthcare"})]
+    ok &= _check("industry_links: 诊疗 → healthcare 页", len(ind) == 1 and "healthcare" in ind[0], ind)
+    ok &= _check("industry_links: odm 的 industry 题同样命中",
+                 len(WC.industry_links_for({"industry": "Field service / on-site work"})) == 1,
+                 WC.industry_links_for({"industry": "Field service / on-site work"}))
+    ok &= _check("industry_links: 官网没有对应行业页就不硬凑",
+                 WC.industry_links_for({"where": "Retail / front desk"}) == [], "Retail → []")
+
+    # ---- MOQ:低于起订量的量级要能被【确定性】判出来(不让模型比大小)----
+    ok &= _check("below_moq: Prototype / under 500 → True", WC.below_moq({"add-branding": {"qty": "Prototype / under 500"}}) is True, True)
+    ok &= _check("below_moq: 2,000 – 10,000 → False", WC.below_moq({"odm": {"qty": "2,000 – 10,000"}}) is False, False)
+    ok &= _check("below_moq: 任一 Tab 透露过小量级就守住口径",
+                 WC.below_moq({"odm": {"qty": "10,000+"}, "add-branding": {"qty": "500 – 2,000"}}) is True, True)
+    ok &= _check("below_moq: 没做过问卷 → False", WC.below_moq(None) is False, False)
+    # MOQ 口径必须真的拼进提示词(以前 moq_note 是死配置、从没注入,bot 才会对小批量说"完美契合")
+    from ai import prompts
+    ml = prompts.moq_line({"note": WC.MOQ_NOTE, "below": True})
+    ok &= _check("moq_line: 低于起订量时给出硬约束",
+                 "2,000" in ml and "great fit" in ml and "BELOW" in ml, len(ml))
+    ok &= _check("moq_line: 量级够时只给口径、不提门槛",
+                 "great fit" not in prompts.moq_line({"note": WC.MOQ_NOTE, "below": False}), "no warning")
+    ok &= _check("moq_line: 没配 note → 整块不放", prompts.moq_line({"note": "", "below": True}) == "", '""')
+
+    # ---- 归因题("你从哪知道我们的"):固定选项不信前端传的文字、Other 收自由文本并截断 ----
+    ok &= _check("source_value: 固定选项取配置里的 label",
+                 WC.source_value("linkedin", "前端乱传的东西") == "LinkedIn", WC.source_value("linkedin", "x"))
+    ok &= _check("source_value: Other 收自由文本", WC.source_value("other", "a colleague") == "Other: a colleague",
+                 WC.source_value("other", "a colleague"))
+    ok &= _check("source_value: Other 留空也算答了", WC.source_value("other", "") == "Other", WC.source_value("other", ""))
+    ok &= _check("source_value: 自由文本截断到上限",
+                 len(WC.source_value("other", "x" * 500)) == len("Other: ") + WC.SOURCE_TEXT_MAX,
+                 len(WC.source_value("other", "x" * 500)))
+    ok &= _check("source_value: 未知选项 id → None", WC.source_value("wechat-moments", "x") is None, None)
+
+    # 会话里的 source / source_asked:非必填(不进 missing)、只问一次、非空才覆盖
+    S.get_or_create("src1")
+    ok &= _check("source 初始为空且未问过",
+                 S.snapshot("src1")["source"] is None and S.snapshot("src1")["source_asked"] is False, "None/False")
+    S.mark_source_asked("src1")
+    ok &= _check("mark_source_asked 只打标记、不写值",
+                 S.snapshot("src1")["source_asked"] is True and S.snapshot("src1")["source"] is None, "True/None")
+    S.set_source("src1", "LinkedIn")
+    ok &= _check("set_source 写值", S.snapshot("src1")["source"] == "LinkedIn", S.snapshot("src1")["source"])
+    S.set_source("src1", "")
+    ok &= _check("set_source 空值不冲掉已有", S.snapshot("src1")["source"] == "LinkedIn", S.snapshot("src1")["source"])
+    S.update_lead("src1", {"need": "recorder", "email": "a@b.com"})
+    ok &= _check("source 不进 missing(非必填)", S.snapshot("src1")["lead"]["missing"] == [],
+                 S.snapshot("src1")["lead"]["missing"])
+    ok &= _check("source 不混进 lead(免被 LLM 每轮重抽覆盖)", "source" not in S.snapshot("src1")["lead"],
+                 sorted(S.snapshot("src1")["lead"].keys()))
+
     S.get_or_create("u2"); S.get_or_create("u3"); S.get_or_create("u4")
     ok &= _check("LRU evicts u1", S.snapshot("u1") is None and S.snapshot("u4") is not None, S.stats())
 

@@ -34,8 +34,28 @@ QUESTIONNAIRES = CONFIG.get("questionnaires", {})
 #     hint 是自然语言,想让 bot 主动带一句"让专家确认",把这层意思写进对应规则的 hint 文案即可。
 _RECOMMEND_RULES = CONFIG.get("recommend_rules", [])
 # 一条规则都没命中时的兜底(甩产品总览页 + 让真人帮选)。
+# 注:links 是【列表】(一条推荐可能对应多个型号详情页,如 MIC06 + MIC05 各一个页面)。
 _RECOMMEND_DEFAULT = CONFIG.get("recommend_default",
-                                {"products": [], "link": "https://gmic.ai/products/", "hint": ""})
+                                {"products": [],
+                                 "links": [{"label": "Browse all products", "url": "https://gmic.ai/products/"}],
+                                 "hint": ""})
+
+# "在哪用/什么行业"的选项 → 官网对应的行业落地页。key = 问卷选项【原文】,所以同一张表能同时服务
+# help-me-choose 的 where 题和 odm 的 industry 题(两题选项文本不同,各自单独列一条)。
+# 用途见 industry_links_for():答完问卷时除了型号页,再多给一条"你这个行业我们专门做"的页面。
+INDUSTRY_LINKS = CONFIG.get("industry_links", {})
+
+# 起订量(MOQ)口径 + 哪些数量选项【低于】起订量。
+# 为什么要单列 below 清单:让模型自己比较 "Under 1,000" 和 "around 2,000 units" 谁大谁小不可靠,
+# 而且它压根不知道 2000 是硬门槛(以前 moq_note 根本没注入,模型只在 FAQ 答案里瞄到过一次数字,
+# 结果对 "Under 1,000" 回了 "perfect fit" —— 8-19 那条真实询盘就这么说漏的)。
+# 改成:哪些选项算"低于起订量"由我们【写死在配置里】,代码判定,模型只负责用人话说清楚。
+MOQ_NOTE = CONFIG.get("moq_note", "")
+MOQ_BELOW_OPTIONS = CONFIG.get("moq_below_options", [])
+
+# 归因题("你从哪知道我们的")的配置:题干 + 选项(其中 free_text 那个允许自由填写)+ 致谢 + 触发轮数。
+# 前端渲染 chips、后端校验都读这一份,不会两套。
+SOURCE_QUESTION = CONFIG.get("source_question", {})
 
 
 def _answer_matches(answer_val, cond_val):
@@ -87,6 +107,87 @@ def recommend_for(answers):
         if when and all(_answer_matches(answers.get(k), v) for k, v in when.items()):  # 步2:每个条件都满足(含多选包含)
             return rule                                                    # 步3:先匹配先赢
     return _RECOMMEND_DEFAULT                                              # 步3:兜底
+
+def industry_links_for(answers):
+    """
+    从【一份问卷答案】里找出"行业/使用场景"那题选了什么,映射成对应的官网行业落地页。
+
+    为什么按【值】扫而不认题 id:两个 Tab 的行业题 id 不同(help-me-choose 叫 where、odm 叫 industry),
+    而选项文本本身就是唯一的一句话(如 "Clinic / healthcare")。直接拿答案的值去 INDUSTRY_LINKS 查,
+    就不用把题 id 硬编码进代码,以后加 Tab / 改题 id 都不用动这里。
+
+    ── 输入 ──
+      answers: 【单份】扁平答案 dict(本次提交那份),如 {"usage":"Handheld recorder","where":"Field / outdoors"}。
+               多选题的值是列表,也会逐项去查。
+    ── 输出 ──
+      匹配到的行业页配置列表 [{"label":..,"url":..}, ...],按 URL 去重保序;没匹配到 → []。
+    例:{"where":"Clinic / healthcare"} → [{"label":"Healthcare voice hardware","url":".../healthcare-ai-scribe-hardware/"}]
+        {"where":"Retail / front desk"} → [](官网没有对应行业页,就不硬凑)
+    """
+    out, seen = [], set()
+    for val in (answers or {}).values():
+        vals = val if isinstance(val, list) else [val]      # 多选题的值是列表 → 逐项查
+        for v in vals:
+            hit = INDUSTRY_LINKS.get(v)
+            if hit and hit.get("url") and hit["url"] not in seen:
+                seen.add(hit["url"])
+                out.append(hit)
+    return out
+
+
+def below_moq(answers_by_tab):
+    """
+    判断访客选的数量是否【低于】我们的典型起订量(MOQ)。
+
+    输入:answers_by_tab = 会话里按 Tab 分桶的全部问卷答案 {tab:{题id:值}}。
+    输出:True = 他至少在某个问卷里选了低于起订量的量级(如 "Prototype / under 500");否则 False。
+    为什么扫全部桶而不只看当前 Tab:数量题在 odm 和 add-branding 里都有,用户可能在任一处透露过小量级,
+      只要透露过,后续每一轮回复都该守住 MOQ 口径(不能这轮守、下轮忘)。
+    例:{"add-branding":{"qty":"500 – 2,000"}} → True;{"odm":{"qty":"2,000 – 10,000"}} → False。
+    """
+    if not MOQ_BELOW_OPTIONS:
+        return False                                        # 没配"哪些算低于起订量" → 不做判断
+    for answers in (answers_by_tab or {}).values():
+        for val in (answers or {}).values():
+            vals = val if isinstance(val, list) else [val]
+            if any(v in MOQ_BELOW_OPTIONS for v in vals):
+                return True
+    return False
+
+
+# 归因题自由文本的长度上限:它会进 Slack 卡片,截断防有人灌一大段(端点是公开的)。
+SOURCE_TEXT_MAX = 120
+
+
+def source_value(option_id, free_text):
+    """
+    校验归因题("你从哪知道我们的")的提交,返回【最终要存的字符串】;不合法 → None(调用方据此 400)。
+
+    ── 为什么不直接存前端传来的 label ──
+      端点是公开的(谁都能 POST),而这个值会进 Slack 卡片。所以:固定选项的显示文字一律从
+      【我们自己的配置】里取(不信前端传的 label),只有 free_text 那个选项才接受用户输入,且截断。
+      这和 _sanitize_answers 是同一套思路(见 routes)。
+
+    ── 输入 ──
+      option_id: 选项 id(linkedin / google / other);必须是配置里定义过的。
+      free_text: 用户在 Other 后面填的文字(只有 free_text 选项会用到;其余忽略)。
+    ── 输出 ──
+      要存进 session["source"] 的字符串;option_id 不认识 → None。
+    例:("linkedin", None)          → "LinkedIn"(取配置里的 label,忽略前端传什么)
+        ("other", "朋友推荐的")     → "Other: 朋友推荐的"
+        ("other", "")              → "Other"(点了 Other 但没填字,也算答了)
+        ("wechat-moments", "x")    → None(配置里没这个选项 → 400)
+    """
+    opts = {o["id"]: o for o in SOURCE_QUESTION.get("options", [])}
+    opt = opts.get((option_id or "").strip())
+    if not opt:
+        return None                                          # 未知选项 id → 不接受
+    label = opt.get("label") or opt["id"]                    # 显示文字取【配置】里的,不取前端传的
+    if not opt.get("free_text"):
+        return label                                         # 固定选项:就存它的 label
+    extra = " ".join((free_text or "").split())[:SOURCE_TEXT_MAX]   # 压掉多余空白/换行 + 截断
+    return f"{label}: {extra}" if extra else label
+
 
 # 我们【自己有直连入口】、值得甩链接的 IM 平台。只列这几个(contacts 里真有对应条目);
 # 用户报了其它 IM(Line/Signal 等)我们没入口,就只记录、不甩。平台 key 对齐 contacts 的 id。
