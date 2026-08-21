@@ -321,8 +321,18 @@ function renderSourceChips() {
   if (!cfg || !(cfg.options || []).length || sourceAsked) return;
   sourceAsked = true;
 
-  addBubble("bot", cfg.prompt || "How did you hear about us?");
-  const box = document.createElement("div"); box.className = "src-wrap";
+  // ⭐ 做成和问卷同一套【卡片】(Luna 8-20):题头带小表情 + 问题和选项同在一张卡里 +
+  //   选项竖排、每项前面也带小表情。以前是"bot 气泡 + 一排横着挤的 chips",7 个选项会挤到三行。
+  const box = document.createElement("div"); box.className = "q-panel";
+  const head = document.createElement("div"); head.className = "q-head";
+  const hic = document.createElement("span"); hic.className = "ic"; hic.textContent = cfg.icon || "📣";
+  const htt = document.createElement("span"); htt.className = "tt";
+  htt.textContent = cfg.title || "One last thing, optional";
+  head.append(hic, htt); box.appendChild(head);
+  const body = document.createElement("div"); body.className = "q-body";
+  const q = document.createElement("div"); q.className = "q-title";
+  q.textContent = cfg.prompt || "How did you hear about us?";
+  body.appendChild(q); box.appendChild(body);
   messagesEl.appendChild(box);
 
   let done = false;   // 防连点两次发两条
@@ -341,7 +351,8 @@ function renderSourceChips() {
 
   // Other:把选项行换成"输入框 + 发送"(允许留空直接发 → 就记成 "Other")
   function showOther(opt) {
-    box.innerHTML = "";
+    body.innerHTML = "";                                            // 只清卡片主体,题头留着
+    body.appendChild(q);
     const form = document.createElement("div"); form.className = "src-other";
     const inp = document.createElement("input");
     inp.type = "text"; inp.placeholder = cfg.other_placeholder || "Where did you hear about us?";
@@ -349,16 +360,26 @@ function renderSourceChips() {
     const go = document.createElement("button"); go.className = "go"; go.textContent = "Send";
     go.onclick = () => finish(opt, inp.value.trim());
     inp.addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); go.click(); } });
-    form.append(inp, go); box.appendChild(form); inp.focus(); scrollDown();
+    form.append(inp, go); body.appendChild(form); inp.focus(); scrollDown();
   }
 
-  const row = document.createElement("div"); row.className = "faq-chips";
+  // 选项:竖排一列(.q-opts),每项 "表情 + 文案",复用问卷那套按钮样式
+  const opts = document.createElement("div"); opts.className = "q-opts";
   for (const opt of cfg.options) {
-    const c = document.createElement("button"); c.className = "chip"; c.textContent = opt.label;
-    c.onclick = () => { if (opt.free_text) showOther(opt); else finish(opt, ""); };
-    row.appendChild(c);
+    const b = document.createElement("button"); b.className = "q-opt";
+    b.textContent = `${opt.icon ? opt.icon + "  " : ""}${opt.label}`;
+    b.onclick = () => { if (opt.free_text) showOther(opt); else finish(opt, ""); };
+    opts.appendChild(b);
   }
-  box.appendChild(row); scrollDown();
+  body.appendChild(opts);
+
+  // Skip:这题本来就可以不答,给个明确的出口(不给出口的卡片看着像必填)
+  const nav = document.createElement("div"); nav.className = "q-nav";
+  const skip = document.createElement("button"); skip.className = "q-btn";
+  skip.textContent = cfg.skip_label || "Skip";
+  skip.onclick = () => { if (!done) { done = true; box.remove(); scrollDown(); } };
+  nav.appendChild(skip); body.appendChild(nav);
+  scrollDown();
 }
 
 /* ============================================================

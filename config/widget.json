@@ -432,41 +432,68 @@
   ],
   "questionnaire_followup": "Want to fine-tune this? Tell me any specific requirements. And whenever you're ready, just leave a contact (email, phone, or a messaging app) and a real member of our team will personally follow up with you shortly.",
   "source_question": {
-    "prompt": "One quick thing, and feel free to skip it: how did you hear about GMIC AI?",
+    "prompt": "How did you hear about GMIC AI?",
     "options": [
       {
         "id": "linkedin",
-        "label": "LinkedIn"
+        "label": "LinkedIn",
+        "icon": "💼"
       },
       {
         "id": "google",
-        "label": "Google search"
+        "label": "Google search",
+        "icon": "🔍"
       },
       {
         "id": "chatgpt",
-        "label": "ChatGPT"
+        "label": "ChatGPT",
+        "icon": "🤖"
       },
       {
         "id": "gemini",
-        "label": "Gemini"
+        "label": "Gemini",
+        "icon": "✨"
       },
       {
         "id": "other_ai",
-        "label": "Other AI"
+        "label": "Other AI",
+        "icon": "🧠"
       },
       {
         "id": "our_blog",
-        "label": "Our blog"
+        "label": "Our blog",
+        "icon": "📰"
       },
       {
         "id": "other",
         "label": "Other",
-        "free_text": true
+        "free_text": true,
+        "icon": "✍️"
       }
     ],
     "other_placeholder": "Where did you hear about us?",
     "thanks": "Thanks, that really helps us.",
-    "ask_after_user_turns": 3
+    "ask_after_user_turns": 5,
+    "icon": "📣",
+    "title": "One last thing, optional",
+    "skip_label": "Skip",
+    "ask_turns_after_contact": 2,
+    "farewell_words": [
+      "thanks",
+      "thank you",
+      "thx",
+      "appreciate it",
+      "bye",
+      "goodbye",
+      "that's all",
+      "that is all",
+      "no more questions",
+      "谢谢",
+      "多谢",
+      "再见",
+      "就这些",
+      "没有了"
+    ]
   },
   "product_reference": "Our real product lines (recommend ONLY from these; never invent model names or specs, never state a spec that isn't listed here). Wearable recorders (HA-MIC06B/06A/05/04): MIC05 and MIC06A are secure clinical-grade recorders with NFC-encrypted access, on-device storage (1GB), and MIC05 adds hardware noise reduction. Call-answering (Phone Entry): Telalive turns a desk phone into a 24/7 AI receptionist; HA-TEL02 is a 4G handheld assistant. Speakers: HA-SPK01 (IPX7 waterproof mini), HA-SPK03 (IPX5). Headsets: HA-BC01 (bone-conduction, IPX6, rugged for outdoor use), plus OWS/TWS earbuds. Field push-to-talk device: HA-MIC01. Smart devices: HA-GLS01 glasses, HA-PEN01 pen, translator and toy devices. Dev & modules: an ESP32 kit for embedding our voice AI into your own product. If nothing clearly fits, point them to gmic.ai/products and offer to connect a specialist; never guess a spec you are unsure of. Official pages you MAY share when relevant (paste the EXACT URL, never invent a link; if no page below covers what they asked, share no link rather than guessing one). Products & models: Products https://gmic.ai/products/ | MIC06 secure voice platform https://gmic.ai/mic06-ai-voice-capture-device/ | MIC05 secure recorder https://gmic.ai/mic05-secure-ai-voice-recorder/ | MIC01 push-to-talk https://gmic.ai/mic01-push-to-talk-ai-voice-device/ | Telalive call-answering https://gmic.ai/telalive/ | AI wearable devices https://gmic.ai/ai-wearable-devices/ | Voice agent hardware https://gmic.ai/voice-agent-hardware/ | Edge AI hardware https://gmic.ai/edge-ai-hardware/ | Embedded AI hardware https://gmic.ai/embedded-ai-hardware/ | Fully custom devices https://gmic.ai/custom-devices/. Custom-build & branding: ODM/OEM custom builds https://gmic.ai/ai-hardware-odm-oem/ | Private-label / branding https://gmic.ai/private-label-voice-ai-hardware/ | Custom enclosure design https://gmic.ai/custom-hardware-enclosure-design/ | Implementation services https://gmic.ai/ai-hardware-implementation-services/. By industry: Healthcare / clinical scribe https://gmic.ai/healthcare-ai-scribe-hardware/ and https://gmic.ai/clinical-ai-scribe-hardware/ | Field service https://gmic.ai/field-service-voice-capture-hardware/ | Public safety https://gmic.ai/public-safety-voice-capture-hardware/ | Transportation & logistics https://gmic.ai/logistics-voice-ai-hardware/ | Sales conversation recording https://gmic.ai/sales-intelligence-recording-hardware/ | Veterinary https://gmic.ai/veterinary-ai-documentation-hardware/ | Enterprise https://gmic.ai/enterprise-ai-hardware-solutions/. Process, samples & manufacturing (use these when asked about samples, prototypes, timelines, testing, certification or production): Development process https://gmic.ai/ai-hardware-development-process/ | Rapid prototyping https://gmic.ai/rapid-ai-hardware-prototyping/ | Prototype validation https://gmic.ai/hardware-prototype-validation/ | EVT/DVT/PVT support https://gmic.ai/evt-dvt-pvt-manufacturing-support/ | SMT manufacturing https://gmic.ai/smt-manufacturing-for-ai-hardware/ | Certification support https://gmic.ai/hardware-certification-support/ | Supply chain management https://gmic.ai/hardware-supply-chain-management/. Firmware & audio engineering: Firmware integration https://gmic.ai/firmware-integration-for-ai-devices/ | AI SDK integration https://gmic.ai/ai-sdk-integration-for-voice-devices/ | Audio & DSP tuning https://gmic.ai/audio-dsp-tuning-for-voice-ai/. Company: About us https://gmic.ai/about-gmic-ai/ | Case studies https://gmic.ai/ai-hardware-case-studies/ | FAQ https://gmic.ai/ai-hardware-faq/ | Contact / get a quote https://gmic.ai/contact-gmic-ai/.",
   "contacts": [

@@ -137,6 +137,11 @@ class SessionStore:
                                              #   这个值只由用户点选/打字产生(见 set_source),是确定性数据。也【不进 missing】(非必填)。
                     "source_asked": False,   # 归因题问过没有(问一次就不再问,别烦人)。见 routes._should_ask_source。
                                              #   语义是"已经把题发出去了",不代表用户答了——答了才写 source。
+                    "contact_turn": None,    # 【第几句】拿到联系方式的(用户累计说的第 N 句)。用来把归因题往后放:
+                                             #   不能刚拿到联系方式就紧跟着问(Luna 8-20:那样很赶),要再聊几句才问。
+                    "user_turns": 0,         # 用户累计说了几句(只增不减)。⚠️ 不能用 len(turns) 代替:
+                                             #   turns 有 MAX_TURNS 上限、会裁掉最早的,数出来的会【变小】
+                                             #   (实测:第 5 句时窗口只剩 4 句 user → 归因题永远等不到)。
                     "turns": [],             # 逐句对话:每说一句 append 一条,有上限
                     "slack_thread_ts": None, # 这通对话在 Slack 那条 thread 的根消息 ID(不是时间!)
                     "meta": meta or {},      # 附加信息:来源页面、语言等
@@ -222,6 +227,8 @@ class SessionStore:
             if not s:
                 return
             s["turns"].append({"role": role, "text": text})
+            if role == "user":
+                s["user_turns"] = s.get("user_turns", 0) + 1   # 累计计数(turns 会被裁,这个不会)
             if len(s["turns"]) > MAX_TURNS:
                 s["turns"] = s["turns"][-MAX_TURNS:]   # 只留末尾(最新)MAX_TURNS 条
             s["last_seen"] = _now()
@@ -287,6 +294,10 @@ class SessionStore:
             if not has_contact:
                 missing.append("contact")
             s["lead"]["missing"] = missing
+            # 第一次拿到联系方式的那一刻,记下"当时用户说到第几句"。
+            # 归因题据此往后推(见 routes._should_ask_source):刚给完联系方式不追问,隔几轮再问。
+            if has_contact and s.get("contact_turn") is None:
+                s["contact_turn"] = s.get("user_turns", 0)
 
     def mark_source_asked(self, sid):
         """

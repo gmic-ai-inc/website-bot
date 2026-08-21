@@ -168,27 +168,36 @@ def _should_ask_source(sid, force=False):
     """
     该不该在这一轮把归因题("你从哪知道我们的")发给访客?——【确定性判断,不靠 LLM】。
 
-    ── 产品口径(Luna 2026-08-19 拍板)──
-      ① 【不设成必填】:这题对访客零价值(不像问卷答完能换来一个推荐),必填只会让人随手蒙一个
-         或者直接关窗;逼来的数据比没数据更危险(会拿它做决策)。所以它是"发出去,不答就算了"。
-      ② 【两个触发点】,不只问卷那一处:
-         - 问卷方案给完之后(force=True 由 /questionnaire 传);
-         - 普通聊天里也要问 —— 没进问卷的访客也逃不掉。聊天里的触发条件二者取一先到:
-             · 已经拿到联系方式(这是最自然的收尾时刻,他已经答应被跟进了);
-             · 或者用户已经说了 N 轮(说明是认真在聊,不是路过点一下)。
+    ── 产品口径 ──
+      ① 【不设成必填】(Luna 8-19):这题对访客零价值(不像问卷答完能换来一个推荐),必填只会让人
+         随手蒙一个或者直接关窗;逼来的数据比没数据更危险(会拿它做决策)。所以它是"发出去,不答就算了"。
+      ② 【永远放在最后收尾,不抢戏】(Luna 8-20 改口径):以前是"问卷答完就问 / 一拿到联系方式就问",
+         结果紧跟在访客留下邮箱之后马上追一句,很赶。现在:
+           · 拿到联系方式的 → **再过 N 句才问**(ask_turns_after_contact,默认 2)。先把他真正
+             关心的事聊完,这题垫在最后。
+           · 一直没留联系方式的 → 聊到第 M 句才问(ask_after_user_turns,默认 5)= 当收尾用。
+           · 【问卷答完不再单独触发】:答完问卷正是方案刚出来、他最想接着聊的时刻,插这题最碍事。
+             问卷那一步本身算进句数,所以他继续聊下去自然会走到上面两条。
+           · 兜底:用户说了道谢/道别的话(farewell_words)→ 不再等轮数,立刻问 —— 他要走了,
+             这是最后的机会。判据是【固定词表 + 确定性匹配】,不问大模型(同 MOQ 那条的思路:
+             能用代码判的别交给模型)。
       ③ 【一个会话只问一次】:发出去就标记 source_asked(见 sessions.mark_source_asked),
          用户不理也不再弹。标记在服务端,所以刷新页面(session_id 从 localStorage 复用)也不会重复问。
 
     ── 输入 ──
       sid:   会话 id。
-      force: True = 跳过"聊够几轮/有没有联系方式"这些条件,只要没问过就问(给 /questionnaire 用)。
+      force: 保留参数但**不再让它跳过时机判断**(见 ②:问卷答完不该抢在方案前面问);
+             /questionnaire 仍然传它,只是现在只影响"允许问",不影响"必须现在问"。
     ── 输出 ──
       True = 这一轮把题发出去(调用方需自行调 mark_source_asked);False = 不发。
 
-    例:刚聊第 1 句、没留联系方式 → False(太早,别打断)。
-        刚留下邮箱 → True(自然收尾时刻)。
-        已经问过一次 → False(不管答没答)。
-        答完问卷 → True(force)。
+    例(默认参数):
+        第 1 句、没联系方式        → False(太早,别打断)
+        第 3 句留下邮箱            → False(刚给完就追问很赶)
+        留邮箱后又聊了 2 句(第 5 句)→ True(垫在最后)
+        一直没留联系方式,聊到第 5 句 → True(当收尾)
+        第 2 句就说 "thanks, bye"  → True(他要走了,最后机会)
+        已经问过一次               → False(不管答没答)
     """
     if not SOURCE_QUESTION.get("options"):
         return False                                  # 没配这道题 → 永不问(删配置即整个功能下线)
@@ -197,13 +206,25 @@ def _should_ask_source(sid, force=False):
         return False
     if snap.get("source") or snap.get("source_asked"):
         return False                                  # 答过 / 问过 → 不再问
-    if force:
-        return True                                   # 问卷答完:直接问
-    lead = snap.get("lead") or {}
-    has_contact = bool(lead.get("email") or lead.get("phone") or lead.get("messengers"))
-    user_turns = sum(1 for t in snap.get("turns", []) if t.get("role") == "user")
-    threshold = int(SOURCE_QUESTION.get("ask_after_user_turns", 3))
-    return has_contact or user_turns >= threshold
+
+    turns = snap.get("turns", [])
+    # ⚠️ 用累计计数,不是 len(turns):turns 有上限会被裁,数出来的会变小(见 sessions.user_turns 注释)
+    user_turns = snap.get("user_turns", 0)
+
+    # 收尾信号:用户这一句在道谢/道别 → 不再等轮数(再等就没机会了)
+    last_user = next((t.get("text", "") for t in reversed(turns) if t.get("role") == "user"), "")
+    low = last_user.lower()
+    if any(w in low for w in SOURCE_QUESTION.get("farewell_words", [])):
+        return True
+
+    contact_turn = snap.get("contact_turn")
+    if contact_turn is not None:
+        # 已经拿到联系方式:从"拿到的那一句"往后再数 N 句
+        gap = int(SOURCE_QUESTION.get("ask_turns_after_contact", 2))
+        return user_turns >= contact_turn + gap
+
+    # 一直没留联系方式:聊到第 M 句当收尾问
+    return user_turns >= int(SOURCE_QUESTION.get("ask_after_user_turns", 5))
 
 
 def _ask_source_flag(sid, force=False):
