@@ -432,7 +432,7 @@
   ],
   "questionnaire_followup": "Want to fine-tune this? Tell me any specific requirements. And whenever you're ready, just leave a contact (email, phone, or a messaging app) and a real member of our team will personally follow up with you shortly.",
   "source_question": {
-    "prompt": "How did you hear about GMIC AI?",
+    "prompt": "One last thing, how did you hear about GMIC AI?",
     "options": [
       {
         "id": "linkedin",
@@ -475,9 +475,8 @@
     "thanks": "Thanks, that really helps us.",
     "ask_after_user_turns": 5,
     "icon": "📣",
-    "title": "One last thing",
     "skip_label": "Skip",
-    "ask_turns_after_contact": 2,
+    "ask_turns_after_contact": 1,
     "farewell_words": [
       "thanks",
       "thank you",

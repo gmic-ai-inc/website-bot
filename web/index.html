@@ -327,12 +327,11 @@ function renderSourceChips() {
   const head = document.createElement("div"); head.className = "q-head";
   const hic = document.createElement("span"); hic.className = "ic"; hic.textContent = cfg.icon || "📣";
   const htt = document.createElement("span"); htt.className = "tt";
-  htt.textContent = cfg.title || "One last thing";
+  // 题头就是【问题本身】,一整句一行(Luna 8-20:别拆成"题头 + 问题"两行)
+  htt.textContent = cfg.prompt || "One last thing, how did you hear about GMIC AI?";
   head.append(hic, htt); box.appendChild(head);
   const body = document.createElement("div"); body.className = "q-body";
-  const q = document.createElement("div"); q.className = "q-title";
-  q.textContent = cfg.prompt || "How did you hear about us?";
-  body.appendChild(q); box.appendChild(body);
+  box.appendChild(body);
   messagesEl.appendChild(box);
 
   let done = false;   // 防连点两次发两条
@@ -351,8 +350,7 @@ function renderSourceChips() {
 
   // Other:把选项行换成"输入框 + 发送"(允许留空直接发 → 就记成 "Other")
   function showOther(opt) {
-    body.innerHTML = "";                                            // 只清卡片主体,题头留着
-    body.appendChild(q);
+    body.innerHTML = "";                                            // 只清卡片主体,题头(=问题)留着
     const form = document.createElement("div"); form.className = "src-other";
     const inp = document.createElement("input");
     inp.type = "text"; inp.placeholder = cfg.other_placeholder || "Where did you hear about us?";

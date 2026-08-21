@@ -157,10 +157,9 @@ def main():
     FAKE_LEAD = {"email": "buyer@acme.com", "need": "wearable recorder"}
     r = client.post("/chat", json={"session_id": "t_s3", "text": "my email is buyer@acme.com"})
     ok &= check("刚留下联系方式 → 不紧跟着问(以前会问,很赶)", r.json().get("ask_source") is False)
-    r = client.post("/chat", json={"session_id": "t_s3", "text": "does it record 8 hours?"})
-    ok &= check("留完联系方式后第 1 句 → 还不问", r.json().get("ask_source") is False)
-    r = client.post("/chat", json={"session_id": "t_s3", "text": "great, and shipping time?"})
-    ok &= check("留完联系方式后第 2 句 → 这时才问(垫在最后)", r.json().get("ask_source") is True)
+    r = client.post("/chat", json={"session_id": "t_s3", "text": "yes"})
+    ok &= check("下一句(=bot 复述后用户确认那句)→ 就问(confirm 完马上问)",
+                r.json().get("ask_source") is True, r.json().get("ask_source"))
     FAKE_LEAD = {}
 
     # 只问一次:上面 t_s2 已经问过 → 再聊也不再弹
