@@ -475,7 +475,7 @@
     "thanks": "Thanks, that really helps us.",
     "ask_after_user_turns": 5,
     "icon": "📣",
-    "title": "One last thing, optional",
+    "title": "One last thing",
     "skip_label": "Skip",
     "ask_turns_after_contact": 2,
     "farewell_words": [
