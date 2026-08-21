@@ -178,7 +178,7 @@ def _should_ask_source(sid, force=False):
              就进 lead 了,+1 正好落在【确认那一句】,也就是 Luna 要的"confirm 之后马上问"。
              设成 0 会变成"刚给邮箱就追问"(她否掉过);设成 2 会拖到确认之后还得再聊一句才问
              (8-20 实测她那通就是这样错过去的)。
-           · 一直没留联系方式的 → 聊到第 M 句才问(ask_after_user_turns,默认 5)= 当收尾用。
+           · 一直没留联系方式的 → 聊到第 M 句才问(ask_after_user_turns,默认 3)= 当收尾用。
            · 【问卷答完不再单独触发】:答完问卷正是方案刚出来、他最想接着聊的时刻,插这题最碍事。
              问卷那一步本身算进句数,所以他继续聊下去自然会走到上面两条。
            · 兜底:用户说了道谢/道别的话(farewell_words)→ 不再等轮数,立刻问 —— 他要走了,
@@ -227,7 +227,7 @@ def _should_ask_source(sid, force=False):
         return user_turns >= contact_turn + gap
 
     # 一直没留联系方式:聊到第 M 句当收尾问
-    return user_turns >= int(SOURCE_QUESTION.get("ask_after_user_turns", 5))
+    return user_turns >= int(SOURCE_QUESTION.get("ask_after_user_turns", 3))
 
 
 def _ask_source_flag(sid, force=False):

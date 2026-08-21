@@ -473,9 +473,8 @@
     ],
     "other_placeholder": "Where did you hear about us?",
     "thanks": "Thanks, that really helps us.",
-    "ask_after_user_turns": 5,
+    "ask_after_user_turns": 3,
     "icon": "📣",
-    "skip_label": "Skip",
     "ask_turns_after_contact": 1,
     "farewell_words": [
       "thanks",

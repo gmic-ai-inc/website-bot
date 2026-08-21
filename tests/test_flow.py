@@ -136,7 +136,7 @@ def main():
 
     # ================= 4) 归因题:永远垫在最后收尾 + 只问一次 =================
     # 口径(Luna 8-20 改):问卷答完【不再】立刻问(那会挡在方案前面);拿到联系方式的要再过
-    # ask_turns_after_contact 句才问;没留联系方式的聊到 ask_after_user_turns 句当收尾问;
+    # ask_turns_after_contact 句才问;没留联系方式的聊到 ask_after_user_turns(3)句当收尾问;
     # 用户道谢/道别则立刻问(最后机会)。
     FAKE_LEAD = {}
     r = client.post("/questionnaire", json={
@@ -144,11 +144,9 @@ def main():
     })
     ok &= check("问卷答完 → 不抢在方案前面问", r.json().get("ask_source") is False)
 
-    # 没留联系方式:前几句不打断,到第 5 句才当收尾问
+    # 没留联系方式:前两句不打断,到第 3 句当收尾问(真实会话都很短,等第 5 句多半等不到)
     for i, (txt, want) in enumerate([("hi", False), ("what do you make?", False),
-                                     ("any waterproof recorder?", False),
-                                     ("what about battery life?", False),
-                                     ("and the price range?", True)], start=1):
+                                     ("any waterproof recorder?", True)], start=1):
         r = client.post("/chat", json={"session_id": "t_s2", "text": txt})
         ok &= check(f"没联系方式·第 {i} 句 → {'问' if want else '不问'}",
                     r.json().get("ask_source") is want, r.json().get("ask_source"))

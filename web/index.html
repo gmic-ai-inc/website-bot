@@ -370,13 +370,7 @@ function renderSourceChips() {
     opts.appendChild(b);
   }
   body.appendChild(opts);
-
-  // Skip:这题本来就可以不答,给个明确的出口(不给出口的卡片看着像必填)
-  const nav = document.createElement("div"); nav.className = "q-nav";
-  const skip = document.createElement("button"); skip.className = "q-btn";
-  skip.textContent = cfg.skip_label || "Skip";
-  skip.onclick = () => { if (!done) { done = true; box.remove(); scrollDown(); } };
-  nav.appendChild(skip); body.appendChild(nav);
+  // 不放 Skip 键(Luna 8-20):这题不锁输入栏,不想答直接继续打字就行 —— 卡片留在历史里不碍事。
   scrollDown();
 }
 
